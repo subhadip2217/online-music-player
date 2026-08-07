@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Online Music Player</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+  <div class="player-container">
+    <div class="player">
+      <!-- Cover Art -->
+      <div class="cover">
+        <img id="cover" src="" alt="Cover">
+        <div class="disc" id="disc"></div>
+      </div>
+
+      <!-- Song Info -->
+      <div class="song-info">
+        <h2 id="title">Song Title</h2>
+        <p id="artist">Artist</p>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-container">
+        <span id="current-time">0:00</span>
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress" id="progress"></div>
+        </div>
+        <span id="duration">0:00</span>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button id="prev"><i class="fas fa-step-backward"></i></button>
+        <button id="play" class="play-btn"><i class="fas fa-play"></i></button>
+        <button id="next"><i class="fas fa-step-forward"></i></button>
+      </div>
+
+      <!-- Volume -->
+      <div class="volume-container">
+        <i class="fas fa-volume-down"></i>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8">
+        <i class="fas fa-volume-up"></i>
+      </div>
+    </div>
+
+    <!-- Playlist -->
+    <div class="playlist">
+      <h3>Playlist</h3>
+      <ul id="playlist"></ul>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
