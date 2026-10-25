@@ -43,7 +43,7 @@
 <div class="connect-card"><div class="radio-icon">◉</div><div><strong>Bring your music in</strong><p>Connect Spotify to explore your own library.</p><button onclick="spotifyInfo()">Set up Spotify ↗</button></div></div></aside></div>
 <div id="toast" class="toast" hidden><span id="toast-message"></span><button onclick="document.getElementById('toast').hidden=true">✕</button></div>
 <script>
-const tracks=[
+let tracks=[
 {title:'Midnight City',artist:'M83',album:'Hurry Up, We’re Dreaming',time:'4:03',seconds:243,art:'photo-1519608487953-e999c86e7455',mood:'Dreamy',color:'violet'},
 {title:'The Less I Know The Better',artist:'Tame Impala',album:'Currents',time:'3:36',seconds:216,art:'photo-1470225620780-dba8ba36b745',mood:'Chill',color:'pink'},
 {title:'After Dark',artist:'Mr.Kitty',album:'Time',time:'4:17',seconds:257,art:'photo-1519682337058-a94d519337bc',mood:'Night drive',color:'blue'},
@@ -51,20 +51,91 @@ const tracks=[
 {title:'Space Song',artist:'Beach House',album:'Depression Cherry',time:'5:20',seconds:320,art:'photo-1462331940025-496dfbfc7564',mood:'Dreamy',color:'violet'},
 {title:'A Moment Apart',artist:'ODESZA',album:'A Moment Apart',time:'3:54',seconds:234,art:'photo-1464822759023-fed622ff2c3b',mood:'Focus',color:'blue'}];
 const art=id=>'https://images.unsplash.com/'+id+'?auto=format&fit=crop&w=700&q=85';
+const demoTracks = tracks;
+let spotifyPlaylists = [];
+let spotifyProfile = null;
+let activeSpotifyPlaylist = null;
+const SPOTIFY_CLIENT_KEY = 'sonora_spotify_client_id';
+const SPOTIFY_SCOPES = 'user-read-private user-read-email playlist-read-private playlist-read-collaborative';
+const redirectUri = () => window.location.origin + window.location.pathname;
+function randomString(length=64){const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';const bytes=new Uint8Array(length);crypto.getRandomValues(bytes);return Array.from(bytes,b=>chars[b%chars.length]).join('')}
+async function challengeFor(verifier){const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+async function spotifyInfo(){
+ let clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY)||'';
+ if(!clientId){clientId=prompt('Enter your Spotify Developer app Client ID. Get it from developer.spotify.com/dashboard');if(!clientId)return;clientId=clientId.trim();if(!/^[a-zA-Z0-9]+$/.test(clientId)){notify('That Client ID does not look valid. Copy it from your Spotify Developer Dashboard.');return}localStorage.setItem(SPOTIFY_CLIENT_KEY,clientId)}
+ if(location.protocol==='file:'){notify('Open SONORA on an HTTPS website or localhost first. Spotify requires a registered redirect URL.');return}
+ const verifier=randomString(64),state=randomString(24),challenge=await challengeFor(verifier);
+ sessionStorage.setItem('sonora_pkce_verifier',verifier);sessionStorage.setItem('sonora_oauth_state',state);
+ const url=new URL('https://accounts.spotify.com/authorize');
+ url.search=new URLSearchParams({client_id:clientId,response_type:'code',redirect_uri:redirectUri(),scope:SPOTIFY_SCOPES,state,code_challenge_method:'S256',code_challenge:challenge}).toString();
+ location.href=url.toString();
+}
+async function spotifyToken(code){
+ const clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY),verifier=sessionStorage.getItem('sonora_pkce_verifier');
+ const res=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,grant_type:'authorization_code',code,redirect_uri:redirectUri(),code_verifier:verifier})});
+ const data=await res.json();if(!res.ok)throw new Error(data.error_description||data.error||'Spotify token exchange failed');
+ localStorage.setItem('sonora_spotify_token',data.access_token);localStorage.setItem('sonora_spotify_expires',String(Date.now()+data.expires_in*1000));if(data.refresh_token)localStorage.setItem('sonora_spotify_refresh',data.refresh_token);
+ sessionStorage.removeItem('sonora_pkce_verifier');sessionStorage.removeItem('sonora_oauth_state');
+}
+async function spotifyAccessToken(){
+ const token=localStorage.getItem('sonora_spotify_token'),expires=Number(localStorage.getItem('sonora_spotify_expires')||0);
+ if(token&&Date.now()<expires-60000)return token;
+ const refresh=localStorage.getItem('sonora_spotify_refresh'),clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY);if(!refresh||!clientId)return null;
+ const res=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,grant_type:'refresh_token',refresh_token:refresh})});
+ const data=await res.json();if(!res.ok){localStorage.removeItem('sonora_spotify_token');return null}
+ localStorage.setItem('sonora_spotify_token',data.access_token);localStorage.setItem('sonora_spotify_expires',String(Date.now()+data.expires_in*1000));if(data.refresh_token)localStorage.setItem('sonora_spotify_refresh',data.refresh_token);return data.access_token;
+}
+async function spotifyApi(path){
+ const token=await spotifyAccessToken();if(!token)throw new Error('Connect Spotify to view your playlists.');
+ const res=await fetch('https://api.spotify.com/v1'+path,{headers:{Authorization:'Bearer '+token}});
+ const data=await res.json();if(!res.ok)throw new Error(data.error?.message||'Spotify API request failed');return data;
+}
+async function loadSpotifyAccount(){
+ const token=await spotifyAccessToken();if(!token)return;
+ try{
+  spotifyProfile=await spotifyApi('/me');spotifyPlaylists=[];let url='/me/playlists?limit=50';
+  while(url){const data=await spotifyApi(url);spotifyPlaylists.push(...(data.items||[]));url=data.next?data.next.replace('https://api.spotify.com/v1',''):null;if(spotifyPlaylists.length>=200)break}
+  let container=document.getElementById('spotify-playlist-links');if(!container){container=document.createElement('div');container.id='spotify-playlist-links';document.querySelector('.sidebar .side-divider').after(container)}
+  container.innerHTML='<div class="side-label" style="margin-top:14px">SPOTIFY PLAYLISTS</div>'+spotifyPlaylists.map(p=>'<button class="playlist-link" data-spotify-playlist="'+p.id+'" title="'+escapeText(p.name)+'"><i class="dot"></i>'+escapeText(p.name)+'</button>').join('');
+  container.querySelectorAll('[data-spotify-playlist]').forEach(b=>b.addEventListener('click',()=>loadSpotifyPlaylist(b.dataset.spotifyPlaylist)));
+  document.querySelector('.connect').innerHTML='◉ <span class="connect-text">'+escapeText(spotifyProfile.display_name||'Spotify connected')+'</span> ↗';
+  notify('Connected to Spotify'+(spotifyProfile.display_name?' as '+spotifyProfile.display_name:'')+'. Your playlists are ready.');
+ }catch(e){notify('Spotify connection issue: '+e.message)}
+}
+function escapeText(value){return String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+async function loadSpotifyPlaylist(id){
+ try{
+  const playlist=spotifyPlaylists.find(p=>p.id===id);if(!playlist)return;
+  let items=[],url='/playlists/'+encodeURIComponent(id)+'/items?limit=50';
+  while(url){const data=await spotifyApi(url);items.push(...(data.items||[]));url=data.next?data.next.replace('https://api.spotify.com/v1',''):null;if(items.length>=100)break}
+  const mapped=items.map(item=>item.item||item.track).filter(t=>t&&t.type==='track').map(t=>({title:t.name,artist:(t.artists||[]).map(a=>a.name).join(', '),album:t.album?.name||'',time:formatTime(Math.floor((t.duration_ms||0)/1000)),seconds:Math.floor((t.duration_ms||0)/1000),art:t.album?.images?.[0]?.url||'',mood:'Spotify',color:'violet',spotifyUrl:t.external_urls?.spotify,spotifyId:t.id,spotifyUri:t.uri}));
+  if(!mapped.length){notify('No tracks were returned for this playlist.');return}
+  tracks.splice(0,tracks.length,...mapped);activeSpotifyPlaylist=playlist.name;mood='All';pageName='Your Library';$('crumb').textContent='Your Library';document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('selected',b.dataset.page==='Your Library'));renderTracks();notify('Loaded '+mapped.length+' tracks from '+playlist.name+'. Choose a track to open it in Spotify.');
+ }catch(e){notify('Could not load playlist: '+e.message)}
+}
+function formatTime(seconds){return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')}
+async function handleSpotifyCallback(){
+ const params=new URLSearchParams(location.search),code=params.get('code'),state=params.get('state'),error=params.get('error');if(!code&&!error)return;
+ history.replaceState({},document.title,location.pathname+location.hash);
+ if(error){notify('Spotify sign-in was cancelled or denied.');return}
+ if(!state||state!==sessionStorage.getItem('sonora_oauth_state')){notify('Spotify sign-in could not be verified. Please try again.');return}
+ try{await spotifyToken(code);await loadSpotifyAccount()}catch(e){notify('Spotify sign-in failed: '+e.message)}
+}
+
 let current=0,playing=false,progress=31,volume=72,mood='All',pageName='Home',liked=new Set(),timer=null;
 const $=id=>document.getElementById(id);
 function notify(msg){$('toast-message').textContent=msg;$('toast').hidden=false;clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('toast').hidden=true,4200)}
-function spotifyInfo(){notify('Spotify is not connected yet. Add a Spotify Developer app and OAuth sign-in to enable real playlists and playback.')}
+
 function menu(open){$('sidebar').classList.toggle('open',open)}
 function page(p){pageName=p;$('crumb').textContent=p;document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('selected',b.dataset.page===p));menu(false);renderTracks()}
 function chooseMood(m){mood=m;page('Discover');document.querySelectorAll('.mood-card').forEach(c=>c.classList.toggle('active',c.dataset.mood===m));$('all-pill').classList.toggle('on',m==='All');$('mood-pill').classList.toggle('on',m!=='All');$('mood-pill').textContent=m==='All'?'For your mood':m;renderTracks()}
 function toggleLike(i){liked.has(i)?liked.delete(i):liked.add(i);$('liked-count').hidden=!liked.size;$('liked-count').textContent=liked.size;$('now-like').textContent=liked.has(current)?'♥':'♡';$('now-like').classList.toggle('liked',liked.has(current));renderTracks()}
 function renderTracks(){const q=$('search').value.toLowerCase();const list=tracks.map((t,i)=>({...t,i})).filter(t=>(pageName!=='Liked Songs'||liked.has(t.i))&&(mood==='All'||t.mood===mood)&&[t.title,t.artist,t.album].join(' ').toLowerCase().includes(q));$('track-kicker').textContent=pageName==='Liked Songs'?'YOUR PERSONAL COLLECTION':mood==='All'?'A LITTLE SOMETHING FOR YOU':'THE '+mood.toUpperCase()+' FREQUENCY';$('track-heading').innerHTML=pageName==='Liked Songs'?'Your <span>favorites.</span>':'In your <span>orbit.</span>';$('track-list').innerHTML=list.length?list.map(t=>'<div class="track-row '+(current===t.i?'current':'')+'"><span class="track-index">'+(current===t.i&&playing?'♫':String(t.i+1).padStart(2,'0'))+'</span><button class="track-title" onclick="playTrack('+t.i+')"><span class="cover"><img src="'+art(t.art)+'" alt=""></span><span class="track-name"><strong>'+t.title+'</strong><small>'+t.artist+'</small></span><span class="row-play">▶</span></button><span class="album">'+t.album+'</span><span><em class="tag '+t.color+'">'+t.mood+'</em></span><span class="time">'+t.time+'</span><button class="like '+(liked.has(t.i)?'liked':'')+'" aria-label="Like '+t.title+'" onclick="toggleLike('+t.i+')">'+(liked.has(t.i)?'♥':'♡')+'</button></div>').join(''):'<div class="empty">♫<strong>No tracks in this orbit yet</strong><span>Try another mood or search.</span></div>'}
-function playTrack(i){current=(i+tracks.length)%tracks.length;playing=true;progress=0;updatePlayer();renderTracks();startTimer()}
+function playTrack(i){current=(i+tracks.length)%tracks.length;progress=0;if(tracks[current]?.spotifyUrl){playing=false;updatePlayer();renderTracks();window.open(tracks[current].spotifyUrl,'_blank','noopener,noreferrer');notify('Opened this track in Spotify. SONORA demo controls do not stream Spotify audio.');return}playing=true;updatePlayer();renderTracks();startTimer()}
 function togglePlay(){playing=!playing;updatePlayer();renderTracks();if(playing)startTimer();else clearInterval(timer)}
 function startTimer(){clearInterval(timer);timer=setInterval(()=>{if(!playing)return;progress+=100/(tracks[current].seconds);if(progress>=100){playTrack((current+1)%tracks.length);return}updateProgress()},1000)}
 function updateProgress(){ $('progress').value=progress;const sec=Math.floor(tracks[current].seconds*progress/100);$('elapsed').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');document.querySelectorAll('#wave i').forEach((el,i)=>el.classList.toggle('lit',i<progress*.66))}
-function updatePlayer(){const t=tracks[current];$('now-image').src=art(t.art);$('now-title').textContent=t.title;$('now-artist').textContent=t.artist+' · '+t.album;$('duration').textContent=t.time;$('now-like').textContent=liked.has(current)?'♥':'♡';$('now-like').classList.toggle('liked',liked.has(current));$('play-btn').textContent=playing?'Ⅱ':'▶';$('aura').textContent=playing?'You’re in the flow. Keep going.':'Press play and find your flow.';updateProgress()}
+function updatePlayer(){const t=tracks[current];$('now-image').src=(t.art&&t.art.startsWith('http'))?t.art:art(t.art);$('now-title').textContent=t.title;$('now-artist').textContent=t.artist+' · '+t.album;$('duration').textContent=t.time;$('now-like').textContent=liked.has(current)?'♥':'♡';$('now-like').classList.toggle('liked',liked.has(current));$('play-btn').textContent=playing?'Ⅱ':'▶';$('aura').textContent=playing?'You’re in the flow. Keep going.':'Press play and find your flow.';updateProgress()}
 $('progress').addEventListener('input',e=>{progress=Number(e.target.value);updateProgress()});$('volume').addEventListener('input',e=>{$('volume-value').textContent=e.target.value+'%'});document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('search').focus()}if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){e.preventDefault();togglePlay()}});
-$('bars').innerHTML=Array.from({length:29},(_,i)=>'<i style="--i:'+i+'"></i>').join('');$('wave').innerHTML=Array.from({length:66},(_,i)=>'<i style="--h:'+(12+((Math.sin(i*2.13)+1)*.5)*72+((i*7)%17))+'%"></i>').join('');updatePlayer();renderTracks();
+$('bars').innerHTML=Array.from({length:29},(_,i)=>'<i style="--i:'+i+'"></i>').join('');$('wave').innerHTML=Array.from({length:66},(_,i)=>'<i style="--h:'+(12+((Math.sin(i*2.13)+1)*.5)*72+((i*7)%17))+'%"></i>').join('');updatePlayer();renderTracks();handleSpotifyCallback();loadSpotifyAccount();
 </script></body></html>
