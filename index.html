@@ -64,7 +64,7 @@ async function spotifyInfo(){
  let clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY)||'';
  if(!clientId){clientId=prompt('Enter your Spotify Developer app Client ID. Get it from developer.spotify.com/dashboard');if(!clientId)return;clientId=clientId.trim();if(!/^[a-zA-Z0-9]+$/.test(clientId)){notify('That Client ID does not look valid. Copy it from your Spotify Developer Dashboard.');return}localStorage.setItem(SPOTIFY_CLIENT_KEY,clientId)}
  if(location.protocol==='file:'){notify('Open SONORA on an HTTPS website or localhost first. Spotify requires a registered redirect URL.');return}
- if(!confirm('In Spotify Developer Dashboard, add this exact Redirect URI and save it first:\\n\\n'+redirectUri()+'\\n\\nHave you saved it?'))return;
+ if(!confirm('In Spotify Developer Dashboard, add this exact Redirect URI and save it first:\n\n'+redirectUri()+'\n\nHave you saved it?'))return;
  const verifier=randomString(64),state=randomString(24),challenge=await challengeFor(verifier);
  sessionStorage.setItem('sonora_pkce_verifier',verifier);sessionStorage.setItem('sonora_oauth_state',state);
  const url=new URL('https://accounts.spotify.com/authorize');
