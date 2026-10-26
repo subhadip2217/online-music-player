@@ -56,7 +56,7 @@ let spotifyPlaylists = [];
 let spotifyProfile = null;
 let activeSpotifyPlaylist = null;
 function formatTime(seconds){return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')}
-function escapeText(value){return String(value||'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]))}
+function escapeText(value){return String(value||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&#39;')}
 const JAMENDO_CLIENT_KEY = 'sonora_jamendo_client_id';
 let jamendoSearchTimer = null;
 let jamendoRequestNumber = 0;
