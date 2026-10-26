@@ -22,7 +22,7 @@
 <div class="side-divider"></div><div class="side-label">YOUR PLAYLISTS <button onclick="notify('Playlist saving will be available when your music library is connected.')">＋</button></div>
 <button class="playlist-link" onclick="chooseMood('Dreamy')"><i class="dot"></i>Soft Frequencies</button><button class="playlist-link" onclick="chooseMood('Night drive')"><i class="dot blue"></i>After Hours</button><button class="playlist-link" onclick="chooseMood('Focus')"><i class="dot orange"></i>Deep Focus</button>
 <div class="sidebar-bottom"><div class="orb">✦</div><div><strong>Your sound. Your world.</strong><p>A little more magic every day.</p></div></div></aside>
-<main class="main"><header class="topbar"><button class="mobile-menu" onclick="menu(true)">☰</button><div class="breadcrumbs">SONORA <span class="slash">/</span><strong id="crumb">Home</strong></div><label class="search"><span>⌕</span><input id="search" placeholder="Search tracks, artists..." oninput="renderTracks()"><kbd>⌘ K</kbd></label><button class="connect" onclick="spotifyInfo()">◉ <span class="connect-text">Connect Spotify</span> ↗</button></header>
+<main class="main"><header class="topbar"><button class="mobile-menu" onclick="menu(true)">☰</button><div class="breadcrumbs">SONORA <span class="slash">/</span><strong id="crumb">Home</strong></div><label class="search"><span>⌕</span><input id="search" placeholder="Search free music..." oninput="searchMusic()"><kbd>⌘ K</kbd></label><button class="connect" onclick="spotifySearch()">◉ <span class="connect-text">Open Spotify</span> ↗</button></header>
 <section class="hero"><div class="hero-copy"><div class="eyebrow"><i class="live"></i> YOUR PERSONAL SOUNDSPACE</div><h1>Feel the music.<br><span>Find your universe.</span></h1><p>A place for every mood, every moment, every version of you.</p><div class="hero-actions"><button class="primary" onclick="playTrack(0)">▶ &nbsp; Start listening</button><button class="ghost" onclick="document.getElementById('moods').scrollIntoView({behavior:'smooth'});page('Discover')">◎ &nbsp; Explore moods</button></div><div class="stats"><div><strong>∞</strong><span>ways to feel</span></div><i class="statline"></i><div><strong>04</strong><span>sound worlds</span></div><i class="statline"></i><div><strong>01</strong><span>you</span></div></div></div>
 <div class="hero-art-wrap"><div class="hero-glow"></div><div class="orbit one"></div><div class="orbit two"></div><div class="hero-art"><img src="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=700&q=85" alt="A glowing nebula in deep space"><div class="art-overlay"><span>NOW ENTERING</span><strong>THE<br>INFINITE</strong><span style="font-size:22px">≋</span></div></div><div class="float-note note-a">✦ <span>your frequency</span></div><div class="float-note note-b">〰 <span>sound in motion</span></div><div class="sound-bars" id="bars"></div></div></section>
 <section class="section" id="moods"><div class="section-heading"><div><div class="kicker">TUNE INTO YOURSELF</div><h2>Choose your <span>mood.</span></h2></div><button class="text-link" onclick="chooseMood('All')">All sound worlds ↗</button></div><div class="mood-grid">
@@ -40,7 +40,7 @@
 <div class="controls"><button aria-label="Shuffle" onclick="notify('Shuffle is ready for connected playback.')">⤨</button><button aria-label="Previous track" onclick="playTrack((current+tracks.length-1)%tracks.length)">|◀</button><button class="big-play" id="play-btn" aria-label="Play or pause" onclick="togglePlay()">▶</button><button aria-label="Next track" onclick="playTrack((current+1)%tracks.length)">▶|</button><button aria-label="Repeat" onclick="notify('Repeat mode will work with connected playback.')">⟲</button></div>
 <div class="volume"><span>◖</span><input aria-label="Volume" type="range" min="0" max="100" value="72" id="volume"><span id="volume-value">72%</span></div><div class="player-divider"></div>
 <div class="listening"><div class="listening-icon">⌁</div><div><strong>Your listening aura</strong><p id="aura">Press play and find your flow.</p></div><i class="pulse"></i></div>
-<div class="connect-card"><div class="radio-icon">◉</div><div><strong>Bring your music in</strong><p>Connect Spotify to explore your own library.</p><button onclick="spotifyInfo()">Set up Spotify ↗</button></div></div></aside></div>
+<div class="connect-card"><div class="radio-icon">♫</div><div><strong>Free music, in SONORA</strong><p>Connect Jamendo to search and play independent music here.</p><button onclick="setupJamendo()">Set up free music ↗</button></div></div></aside></div><audio id="audio-player" preload="none"></audio>
 <div id="toast" class="toast" hidden><span id="toast-message"></span><button onclick="document.getElementById('toast').hidden=true">✕</button></div>
 <script>
 let tracks=[
@@ -55,88 +55,77 @@ const demoTracks = tracks;
 let spotifyPlaylists = [];
 let spotifyProfile = null;
 let activeSpotifyPlaylist = null;
-const SPOTIFY_CLIENT_KEY = 'sonora_spotify_client_id';
-const SPOTIFY_SCOPES = 'user-read-private user-read-email playlist-read-private playlist-read-collaborative';
-const redirectUri = () => window.location.origin + window.location.pathname;
-function randomString(length=64){const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';const bytes=new Uint8Array(length);crypto.getRandomValues(bytes);return Array.from(bytes,b=>chars[b%chars.length]).join('')}
-async function challengeFor(verifier){const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
-async function spotifyInfo(){
- let clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY)||'';
- if(!clientId){clientId=prompt('Enter your Spotify Developer app Client ID. Get it from developer.spotify.com/dashboard');if(!clientId)return;clientId=clientId.trim();if(!/^[a-zA-Z0-9]+$/.test(clientId)){notify('That Client ID does not look valid. Copy it from your Spotify Developer Dashboard.');return}localStorage.setItem(SPOTIFY_CLIENT_KEY,clientId)}
- if(location.protocol==='file:'){notify('Open SONORA on an HTTPS website or localhost first. Spotify requires a registered redirect URL.');return}
- if(!confirm('In Spotify Developer Dashboard, add this exact Redirect URI and save it first:\n\n'+redirectUri()+'\n\nHave you saved it?'))return;
- const verifier=randomString(64),state=randomString(24),challenge=await challengeFor(verifier);
- sessionStorage.setItem('sonora_pkce_verifier',verifier);sessionStorage.setItem('sonora_oauth_state',state);
- const url=new URL('https://accounts.spotify.com/authorize');
- url.search=new URLSearchParams({client_id:clientId,response_type:'code',redirect_uri:redirectUri(),scope:SPOTIFY_SCOPES,state,code_challenge_method:'S256',code_challenge:challenge}).toString();
- location.href=url.toString();
+const JAMENDO_CLIENT_KEY = 'sonora_jamendo_client_id';
+let jamendoSearchTimer = null;
+let jamendoRequestNumber = 0;
+let jamendoActive = false;
+const audioPlayer = () => $('audio-player');
+function setupJamendo(){
+ let id=localStorage.getItem(JAMENDO_CLIENT_KEY)||'';
+ id=prompt('Enter your Jamendo API Client ID. Create a free app at devportal.jamendo.com, then copy its Client ID:',id);
+ if(id===null)return;
+ id=id.trim();
+ if(!id){notify('A Jamendo Client ID is needed to search its music catalogue.');return}
+ localStorage.setItem(JAMENDO_CLIENT_KEY,id);
+ notify('Jamendo is ready. Search for a song or artist to play music in SONORA.');
+ const q=$('search').value.trim();
+ if(q.length>=2)searchMusic();else loadJamendoTracks(mood==='All'?'':mood);
 }
-async function spotifyToken(code){
- const clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY),verifier=sessionStorage.getItem('sonora_pkce_verifier');
- const res=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,grant_type:'authorization_code',code,redirect_uri:redirectUri(),code_verifier:verifier})});
- const data=await res.json();if(!res.ok)throw new Error(data.error_description||data.error||'Spotify token exchange failed');
- localStorage.setItem('sonora_spotify_token',data.access_token);localStorage.setItem('sonora_spotify_expires',String(Date.now()+data.expires_in*1000));if(data.refresh_token)localStorage.setItem('sonora_spotify_refresh',data.refresh_token);
- sessionStorage.removeItem('sonora_pkce_verifier');sessionStorage.removeItem('sonora_oauth_state');
+function spotifySearch(){
+ const q=$('search').value.trim()||(tracks[current]?.title||'music');
+ window.open('https://open.spotify.com/search/'+encodeURIComponent(q),'_blank','noopener,noreferrer');
 }
-async function spotifyAccessToken(){
- const token=localStorage.getItem('sonora_spotify_token'),expires=Number(localStorage.getItem('sonora_spotify_expires')||0);
- if(token&&Date.now()<expires-60000)return token;
- const refresh=localStorage.getItem('sonora_spotify_refresh'),clientId=localStorage.getItem(SPOTIFY_CLIENT_KEY);if(!refresh||!clientId)return null;
- const res=await fetch('https://accounts.spotify.com/api/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:clientId,grant_type:'refresh_token',refresh_token:refresh})});
- const data=await res.json();if(!res.ok){localStorage.removeItem('sonora_spotify_token');return null}
- localStorage.setItem('sonora_spotify_token',data.access_token);localStorage.setItem('sonora_spotify_expires',String(Date.now()+data.expires_in*1000));if(data.refresh_token)localStorage.setItem('sonora_spotify_refresh',data.refresh_token);return data.access_token;
-}
-async function spotifyApi(path){
- const token=await spotifyAccessToken();if(!token)throw new Error('Connect Spotify to view your playlists.');
- const res=await fetch('https://api.spotify.com/v1'+path,{headers:{Authorization:'Bearer '+token}});
- const data=await res.json();if(!res.ok)throw new Error(data.error?.message||'Spotify API request failed');return data;
-}
-async function loadSpotifyAccount(){
- const token=await spotifyAccessToken();if(!token)return;
+async function loadJamendoTracks(query=''){
+ const clientId=localStorage.getItem(JAMENDO_CLIENT_KEY);
+ if(!clientId){return false}
+ const request=++jamendoRequestNumber;
+ const params=new URLSearchParams({client_id:clientId,format:'json',limit:'30',order:'popularity_week',audioformat:'mp31',include:'licenses'});
+ if(query.trim())params.set('search',query.trim());
  try{
-  spotifyProfile=await spotifyApi('/me');spotifyPlaylists=[];let url='/me/playlists?limit=50';
-  while(url){const data=await spotifyApi(url);spotifyPlaylists.push(...(data.items||[]));url=data.next?data.next.replace('https://api.spotify.com/v1',''):null;if(spotifyPlaylists.length>=200)break}
-  let container=document.getElementById('spotify-playlist-links');if(!container){container=document.createElement('div');container.id='spotify-playlist-links';document.querySelector('.sidebar .side-divider').after(container)}
-  container.innerHTML='<div class="side-label" style="margin-top:14px">SPOTIFY PLAYLISTS</div>'+spotifyPlaylists.map(p=>'<button class="playlist-link" data-spotify-playlist="'+p.id+'" title="'+escapeText(p.name)+'"><i class="dot"></i>'+escapeText(p.name)+'</button>').join('');
-  container.querySelectorAll('[data-spotify-playlist]').forEach(b=>b.addEventListener('click',()=>loadSpotifyPlaylist(b.dataset.spotifyPlaylist)));
-  document.querySelector('.connect').innerHTML='◉ <span class="connect-text">'+escapeText(spotifyProfile.display_name||'Spotify connected')+'</span> ↗';
-  notify('Connected to Spotify'+(spotifyProfile.display_name?' as '+spotifyProfile.display_name:'')+'. Your playlists are ready.');
- }catch(e){notify('Spotify connection issue: '+e.message)}
+  const response=await fetch('https://api.jamendo.com/v3.0/tracks/?'+params.toString());
+  const raw=await response.text();
+  let data;try{data=JSON.parse(raw)}catch{throw new Error('Jamendo returned an unreadable response. Check your Client ID and try again.')}
+  if(!response.ok||data.headers?.status==='failed'||!Array.isArray(data.results))throw new Error(data.headers?.error_message||'Jamendo music search failed. Check your Client ID.');
+  if(request!==jamendoRequestNumber)return true;
+  const found=data.results.filter(t=>t.audio).map(t=>({
+   title:t.name||'Untitled track',artist:t.artist_name||'Unknown artist',album:t.album_name||'Jamendo single',
+   time:formatTime(Number(t.duration)||0),seconds:Number(t.duration)||0,art:t.album_image||t.image||'',
+   mood:query||'Jamendo',color:'violet',audioUrl:t.audio,spotifyUrl:'',jamendoUrl:t.shareurl||'https://www.jamendo.com/',
+   licenseUrl:t.license_ccurl||'',jamendoId:t.id
+  }));
+  if(!found.length){notify('No playable Jamendo tracks found. Try another search.');return true}
+  tracks.splice(0,tracks.length,...found);jamendoActive=true;current=0;progress=0;playing=false;clearInterval(timer);
+  updatePlayer();renderTracks();notify('Found '+found.length+' free tracks on Jamendo. Select one to play.');
+  return true;
+ }catch(error){if(request===jamendoRequestNumber)notify('Jamendo issue: '+error.message);return false}
 }
-function escapeText(value){return String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-async function loadSpotifyPlaylist(id){
- try{
-  const playlist=spotifyPlaylists.find(p=>p.id===id);if(!playlist)return;
-  let items=[],url='/playlists/'+encodeURIComponent(id)+'/items?limit=50';
-  while(url){const data=await spotifyApi(url);items.push(...(data.items||[]));url=data.next?data.next.replace('https://api.spotify.com/v1',''):null;if(items.length>=100)break}
-  const mapped=items.map(item=>item.item||item.track).filter(t=>t&&t.type==='track').map(t=>({title:t.name,artist:(t.artists||[]).map(a=>a.name).join(', '),album:t.album?.name||'',time:formatTime(Math.floor((t.duration_ms||0)/1000)),seconds:Math.floor((t.duration_ms||0)/1000),art:t.album?.images?.[0]?.url||'',mood:'Spotify',color:'violet',spotifyUrl:t.external_urls?.spotify,spotifyId:t.id,spotifyUri:t.uri}));
-  if(!mapped.length){notify('No tracks were returned for this playlist.');return}
-  tracks.splice(0,tracks.length,...mapped);activeSpotifyPlaylist=playlist.name;mood='All';pageName='Your Library';$('crumb').textContent='Your Library';document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('selected',b.dataset.page==='Your Library'));renderTracks();notify('Loaded '+mapped.length+' tracks from '+playlist.name+'. Choose a track to open it in Spotify.');
- }catch(e){notify('Could not load playlist: '+e.message)}
+function searchMusic(){
+ clearTimeout(jamendoSearchTimer);
+ const query=$('search').value.trim();
+ if(query.length<2){
+  if(!query&&jamendoActive){tracks.splice(0,tracks.length,...demoTracks);jamendoActive=false;current=0;playing=false;clearInterval(timer);audioPlayer().pause();audioPlayer().removeAttribute('src');updatePlayer();renderTracks()}
+  else renderTracks();
+  return;
+ }
+ if(!localStorage.getItem(JAMENDO_CLIENT_KEY)){renderTracks();notify('Set up Jamendo using the “Set up free music” link to enable real music search.');return}
+ jamendoSearchTimer=setTimeout(()=>loadJamendoTracks(query),450);
 }
-function formatTime(seconds){return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')}
-async function handleSpotifyCallback(){
- const params=new URLSearchParams(location.search),code=params.get('code'),state=params.get('state'),error=params.get('error');if(!code&&!error)return;
- history.replaceState({},document.title,location.pathname+location.hash);
- if(error){notify('Spotify sign-in was cancelled or denied.');return}
- if(!state||state!==sessionStorage.getItem('sonora_oauth_state')){notify('Spotify sign-in could not be verified. Please try again.');return}
- try{await spotifyToken(code);await loadSpotifyAccount()}catch(e){notify('Spotify sign-in failed: '+e.message)}
-}
+async function spotifyInfo(){spotifySearch()}
 
-let current=0,playing=false,progress=31,volume=72,mood='All',pageName='Home',liked=new Set(),timer=null;
+let current=0,playing=false,progress=0,volume=72,mood='All',pageName='Home',liked=new Set(),timer=null;
 const $=id=>document.getElementById(id);
 function notify(msg){$('toast-message').textContent=msg;$('toast').hidden=false;clearTimeout(notify.timer);notify.timer=setTimeout(()=>$('toast').hidden=true,4200)}
 
 function menu(open){$('sidebar').classList.toggle('open',open)}
 function page(p){pageName=p;$('crumb').textContent=p;document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('selected',b.dataset.page===p));menu(false);renderTracks()}
-function chooseMood(m){mood=m;page('Discover');document.querySelectorAll('.mood-card').forEach(c=>c.classList.toggle('active',c.dataset.mood===m));$('all-pill').classList.toggle('on',m==='All');$('mood-pill').classList.toggle('on',m!=='All');$('mood-pill').textContent=m==='All'?'For your mood':m;renderTracks()}
+function chooseMood(m){mood=m;page('Discover');document.querySelectorAll('.mood-card').forEach(c=>c.classList.toggle('active',c.dataset.mood===m));$('all-pill').classList.toggle('on',m==='All');$('mood-pill').classList.toggle('on',m!=='All');$('mood-pill').textContent=m==='All'?'For your mood':m;if(localStorage.getItem(JAMENDO_CLIENT_KEY)){loadJamendoTracks(m==='All'?'':m)}else renderTracks()}
 function toggleLike(i){liked.has(i)?liked.delete(i):liked.add(i);$('liked-count').hidden=!liked.size;$('liked-count').textContent=liked.size;$('now-like').textContent=liked.has(current)?'♥':'♡';$('now-like').classList.toggle('liked',liked.has(current));renderTracks()}
-function renderTracks(){const q=$('search').value.toLowerCase();const list=tracks.map((t,i)=>({...t,i})).filter(t=>(pageName!=='Liked Songs'||liked.has(t.i))&&(mood==='All'||t.mood===mood)&&[t.title,t.artist,t.album].join(' ').toLowerCase().includes(q));$('track-kicker').textContent=pageName==='Liked Songs'?'YOUR PERSONAL COLLECTION':mood==='All'?'A LITTLE SOMETHING FOR YOU':'THE '+mood.toUpperCase()+' FREQUENCY';$('track-heading').innerHTML=pageName==='Liked Songs'?'Your <span>favorites.</span>':'In your <span>orbit.</span>';$('track-list').innerHTML=list.length?list.map(t=>'<div class="track-row '+(current===t.i?'current':'')+'"><span class="track-index">'+(current===t.i&&playing?'♫':String(t.i+1).padStart(2,'0'))+'</span><button class="track-title" onclick="playTrack('+t.i+')"><span class="cover"><img src="'+((t.art&&t.art.startsWith('http'))?t.art:art(t.art))+'" alt=""></span><span class="track-name"><strong>'+t.title+'</strong><small>'+t.artist+'</small></span><span class="row-play">▶</span></button><span class="album">'+t.album+'</span><span><em class="tag '+t.color+'">'+t.mood+'</em></span><span class="time">'+t.time+'</span><button class="like '+(liked.has(t.i)?'liked':'')+'" aria-label="Like '+t.title+'" onclick="toggleLike('+t.i+')">'+(liked.has(t.i)?'♥':'♡')+'</button></div>').join(''):'<div class="empty">♫<strong>No tracks in this orbit yet</strong><span>Try another mood or search.</span></div>'}
-function playTrack(i){current=(i+tracks.length)%tracks.length;progress=0;if(tracks[current]?.spotifyUrl){playing=false;updatePlayer();renderTracks();window.open(tracks[current].spotifyUrl,'_blank','noopener,noreferrer');notify('Opened this track in Spotify. SONORA demo controls do not stream Spotify audio.');return}playing=true;updatePlayer();renderTracks();startTimer()}
-function togglePlay(){playing=!playing;updatePlayer();renderTracks();if(playing)startTimer();else clearInterval(timer)}
-function startTimer(){clearInterval(timer);timer=setInterval(()=>{if(!playing)return;progress+=100/(tracks[current].seconds);if(progress>=100){playTrack((current+1)%tracks.length);return}updateProgress()},1000)}
-function updateProgress(){ $('progress').value=progress;const sec=Math.floor(tracks[current].seconds*progress/100);$('elapsed').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');document.querySelectorAll('#wave i').forEach((el,i)=>el.classList.toggle('lit',i<progress*.66))}
-function updatePlayer(){const t=tracks[current];$('now-image').src=(t.art&&t.art.startsWith('http'))?t.art:art(t.art);$('now-title').textContent=t.title;$('now-artist').textContent=t.artist+' · '+t.album;$('duration').textContent=t.time;$('now-like').textContent=liked.has(current)?'♥':'♡';$('now-like').classList.toggle('liked',liked.has(current));$('play-btn').textContent=playing?'Ⅱ':'▶';$('aura').textContent=playing?'You’re in the flow. Keep going.':'Press play and find your flow.';updateProgress()}
-$('progress').addEventListener('input',e=>{progress=Number(e.target.value);updateProgress()});$('volume').addEventListener('input',e=>{$('volume-value').textContent=e.target.value+'%'});document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('search').focus()}if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){e.preventDefault();togglePlay()}});
-$('bars').innerHTML=Array.from({length:29},(_,i)=>'<i style="--i:'+i+'"></i>').join('');$('wave').innerHTML=Array.from({length:66},(_,i)=>'<i style="--h:'+(12+((Math.sin(i*2.13)+1)*.5)*72+((i*7)%17))+'%"></i>').join('');updatePlayer();renderTracks();handleSpotifyCallback();loadSpotifyAccount();
+function renderTracks(){const q=jamendoActive?'':$('search').value.toLowerCase();const list=tracks.map((t,i)=>({...t,i})).filter(t=>(pageName!=='Liked Songs'||liked.has(t.i))&&(jamendoActive||mood==='All'||t.mood===mood)&&[t.title,t.artist,t.album].join(' ').toLowerCase().includes(q));$('track-kicker').textContent=pageName==='Liked Songs'?'YOUR PERSONAL COLLECTION':mood==='All'?'A LITTLE SOMETHING FOR YOU':'THE '+mood.toUpperCase()+' FREQUENCY';$('track-heading').innerHTML=pageName==='Liked Songs'?'Your <span>favorites.</span>':'In your <span>orbit.</span>';$('track-list').innerHTML=list.length?list.map(t=>'<div class="track-row '+(current===t.i?'current':'')+'"><span class="track-index">'+(current===t.i&&playing?'♫':String(t.i+1).padStart(2,'0'))+'</span><button class="track-title" onclick="playTrack('+t.i+')"><span class="cover"><img src="'+escapeText((t.art&&t.art.startsWith('http'))?t.art:art(t.art))+'" alt=""></span><span class="track-name"><strong>'+escapeText(t.title)+'</strong><small>'+escapeText(t.artist)+'</small></span><span class="row-play">▶</span></button><span class="album">'+escapeText(t.album)+'</span><span><em class="tag '+escapeText(t.color)+'">'+escapeText(t.mood)+'</em></span><span class="time">'+escapeText(t.time)+'</span><button class="like '+(liked.has(t.i)?'liked':'')+'" aria-label="Like '+escapeText(t.title)+'" onclick="toggleLike('+t.i+')">'+(liked.has(t.i)?'♥':'♡')+'</button></div>').join(''):'<div class="empty">♫<strong>No tracks in this orbit yet</strong><span>Try another mood or search.</span></div>'}
+async function playTrack(i){current=(i+tracks.length)%tracks.length;progress=0;const t=tracks[current];if(t?.spotifyUrl){playing=false;updatePlayer();renderTracks();window.open(t.spotifyUrl,'_blank','noopener,noreferrer');return}if(t?.audioUrl){clearInterval(timer);const audio=audioPlayer();if(audio.src!==t.audioUrl){audio.src=t.audioUrl;audio.load()}audio.volume=volume/100;try{await audio.play();playing=true;startTimer();notify('Now playing on Jamendo: '+t.title)}catch(e){playing=false;notify('Playback could not start. Try another track or check your connection.')}updatePlayer();renderTracks();return}playing=false;updatePlayer();renderTracks();notify('Search Jamendo for playable music, then select a track.')}
+async function togglePlay(){const t=tracks[current];if(t?.audioUrl){const audio=audioPlayer();try{if(audio.paused){audio.volume=volume/100;await audio.play();playing=true;startTimer()}else{audio.pause();playing=false;clearInterval(timer)}}catch(e){playing=false;notify('Playback could not start. Try another track.')}updatePlayer();renderTracks();return}playing=!playing;updatePlayer();renderTracks();if(playing)startTimer();else clearInterval(timer)}
+function startTimer(){clearInterval(timer);timer=setInterval(()=>{if(!playing)return;const t=tracks[current];if(t?.audioUrl){const a=audioPlayer();if(Number.isFinite(a.duration)&&a.duration>0){progress=a.currentTime/a.duration*100;updateProgress()}if(a.ended)playTrack((current+1)%tracks.length);return}progress+=100/Math.max(1,t.seconds||180);if(progress>=100){playTrack((current+1)%tracks.length);return}updateProgress()},1000)}
+function updateProgress(){ $('progress').value=progress;const t=tracks[current]||demoTracks[0];const sec=t.audioUrl&&Number.isFinite(audioPlayer().currentTime)?Math.floor(audioPlayer().currentTime):Math.floor((t.seconds||0)*progress/100);$('elapsed').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0');document.querySelectorAll('#wave i').forEach((el,i)=>el.classList.toggle('lit',i<progress*.66))}
+function updatePlayer(){const t=tracks[current]||demoTracks[0];$('now-image').src=(t.art&&t.art.startsWith('http'))?t.art:art(t.art);$('now-title').textContent=t.title;$('now-artist').textContent=t.artist+' · '+t.album;$('duration').textContent=t.time;$('now-like').textContent=liked.has(current)?'♥':'♡';$('now-like').classList.toggle('liked',liked.has(current));$('play-btn').textContent=playing?'Ⅱ':'▶';$('aura').textContent=playing?'You’re in the flow. Keep going.':t.audioUrl?'Ready when you are.':'Search free music to start listening.';updateProgress()}
+$('progress').addEventListener('input',e=>{progress=Number(e.target.value);if(tracks[current]?.audioUrl&&Number.isFinite(audioPlayer().duration))audioPlayer().currentTime=audioPlayer().duration*progress/100;updateProgress()});$('volume').addEventListener('input',e=>{volume=Number(e.target.value);audioPlayer().volume=volume/100;$('volume-value').textContent=e.target.value+'%'});document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('search').focus()}if(e.code==='Space'&&!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){e.preventDefault();togglePlay()}});
+$('bars').innerHTML=Array.from({length:29},(_,i)=>'<i style="--i:'+i+'"></i>').join('');$('wave').innerHTML=Array.from({length:66},(_,i)=>'<i style="--h:'+(12+((Math.sin(i*2.13)+1)*.5)*72+((i*7)%17))+'%"></i>').join('');audioPlayer().volume=volume/100;audioPlayer().addEventListener('ended',()=>playTrack((current+1)%tracks.length));updatePlayer();renderTracks();
 </script></body></html>
