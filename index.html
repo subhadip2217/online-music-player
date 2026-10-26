@@ -51,7 +51,7 @@ let tracks=[
 {title:'Space Song',artist:'Beach House',album:'Depression Cherry',time:'5:20',seconds:320,art:'photo-1462331940025-496dfbfc7564',mood:'Dreamy',color:'violet'},
 {title:'A Moment Apart',artist:'ODESZA',album:'A Moment Apart',time:'3:54',seconds:234,art:'photo-1464822759023-fed622ff2c3b',mood:'Focus',color:'blue'}];
 const art=id=>'https://images.unsplash.com/'+id+'?auto=format&fit=crop&w=700&q=85';
-const demoTracks = tracks;
+const demoTracks = tracks.map(track => ({...track}));
 let spotifyPlaylists = [];
 let spotifyProfile = null;
 let activeSpotifyPlaylist = null;
